@@ -305,6 +305,11 @@ type GNMINotificationsConfig struct {
 	// message should be used for the paths in the output notification. If
 	// set to false, the element field is used.
 	UsePathElem bool
+	// IgnoreUnsupported allows to ignore all errors of type UnsupportedError.
+	// If this option is set to true and YANG files which use unsupported types
+	// are processed, only the part of gnmi notifications which are supported
+	// are being returned.
+	IgnoreUnsupported bool
 	// ElementPrefix stores the prefix that should be used within the
 	// Prefix field of the gNMI Notification message expressed as a slice
 	// of strings as per the path definition in gNMI 0.3.1 and below.
@@ -336,7 +341,7 @@ func TogNMINotifications(s GoStruct, ts int64, cfg GNMINotificationsConfig) ([]*
 	}
 
 	leaves := map[*path]interface{}{}
-	if err := findUpdatedLeaves(leaves, s, pfx); err != nil {
+	if err := findUpdatedLeaves(leaves, s, pfx, cfg); err != nil {
 		return nil, err
 	}
 
@@ -354,7 +359,7 @@ func TogNMINotifications(s GoStruct, ts int64, cfg GNMINotificationsConfig) ([]*
 // the GoStruct contains fields that are themselves structured objects (YANG
 // lists, or containers - represented as maps or struct pointers), the function
 // is called recursively on them.
-func findUpdatedLeaves(leaves map[*path]interface{}, s GoStruct, parent *gnmiPath) error {
+func findUpdatedLeaves(leaves map[*path]interface{}, s GoStruct, parent *gnmiPath, cfg GNMINotificationsConfig) error {
 	var errs errlist.List
 
 	if !parent.isValid() {
@@ -394,7 +399,11 @@ func findUpdatedLeaves(leaves map[*path]interface{}, s GoStruct, parent *gnmiPat
 			for _, k := range fval.MapKeys() {
 				childPath, err := mapValuePath(k, fval.MapIndex(k), mapPaths[0])
 				if err != nil {
-					errs.Add(err)
+					if !cfg.IgnoreUnsupported {
+						errs.Add(UnsupportedError{
+							err.Error(),
+						})
+					}
 					continue
 				}
 
@@ -403,7 +412,7 @@ func findUpdatedLeaves(leaves map[*path]interface{}, s GoStruct, parent *gnmiPat
 					errs.Add(fmt.Errorf("%v: was not a valid GoStruct", mapPaths[0]))
 					continue
 				}
-				errs.Add(findUpdatedLeaves(leaves, goStruct, childPath))
+				errs.Add(findUpdatedLeaves(leaves, goStruct, childPath, cfg))
 			}
 		case reflect.Ptr:
 			// Determine whether this is a pointer to a struct (another YANG container), or a leaf.
@@ -414,7 +423,7 @@ func findUpdatedLeaves(leaves map[*path]interface{}, s GoStruct, parent *gnmiPat
 					errs.Add(fmt.Errorf("%v: was not a valid GoStruct", mapPaths[0]))
 					continue
 				}
-				errs.Add(findUpdatedLeaves(leaves, goStruct, mapPaths[0]))
+				errs.Add(findUpdatedLeaves(leaves, goStruct, mapPaths[0], cfg))
 			default:
 				for _, p := range mapPaths {
 					leaves[&path{p}] = fval.Interface()
@@ -424,7 +433,11 @@ func findUpdatedLeaves(leaves map[*path]interface{}, s GoStruct, parent *gnmiPat
 			if fval.Type().Elem().Kind() == reflect.Ptr {
 				// This is a keyless list - currently unsupported for mapping since there is
 				// not an explicit path that can be used.
-				errs.Add(fmt.Errorf("unimplemented: keyless list cannot be output: %v", mapPaths[0]))
+				if !cfg.IgnoreUnsupported {
+					errs.Add(UnsupportedError{
+						fmt.Sprintf("unimplemented: keyless list cannot be output: %v", mapPaths[0]),
+					})
+				}
 				continue
 			}
 			// This is a leaf-list, so add it as though it were a leaf.
