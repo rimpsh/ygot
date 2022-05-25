@@ -330,8 +330,13 @@ func leastSpecificPath(paths [][]string) []string {
 
 // appendUpdate adds an update to the supplied gNMI Notification message corresponding
 // to the path and value supplied.
-func appendUpdate(n *gnmipb.Notification, path *pathSpec, val interface{}) error {
-	v, err := EncodeTypedValue(val, gnmipb.Encoding_PROTO)
+func appendUpdate(n *gnmipb.Notification, path *pathSpec, val interface{}, opts ...DiffOpt) error {
+	encoding := gnmipb.Encoding_PROTO
+	encOpt := hasEncodingOpt(opts)
+	if encOpt != nil {
+		encoding = encOpt.Encoding
+	}
+	v, err := EncodeTypedValue(val, encoding)
 	if err != nil {
 		return fmt.Errorf("cannot represent field value %v as TypedValue for path %v: %v", val, path, err)
 	}
@@ -388,6 +393,28 @@ type DiffPathOpt struct {
 // IsDiffOpt marks DiffPathOpt as a diff option.
 func (*DiffPathOpt) IsDiffOpt() {}
 
+// DiffEncodingOpt is a DiffOpt that allows to control the encoding behaviour
+// of the Diff function.
+type DiffEncodingOpt struct {
+	//Encoding defines the encoding format that should be used
+	Encoding gnmipb.Encoding
+}
+
+// IsDiffOpt marks DiffPathOpt as a diff option.
+func (*DiffEncodingOpt) IsDiffOpt() {}
+
+// hasEncodingOpt returns the first DiffEncodingOpt from an opts slice, or nil
+// if there isn't one.
+func hasEncodingOpt(opts []DiffOpt) *DiffEncodingOpt {
+	for _, o := range opts {
+		switch v := o.(type) {
+		case *DiffEncodingOpt:
+			return v
+		}
+	}
+	return nil
+}
+
 // Diff takes an original and modified GoStruct, which must be of the same type
 // and returns a gNMI Notification that contains the diff between them. The original
 // struct is considered as the "from" data, with the modified struct the "to" such that:
@@ -438,7 +465,7 @@ func Diff(original, modified GoStruct, opts ...DiffOpt) (*gnmipb.Notification, e
 				if !reflect.DeepEqual(origVal, modVal) {
 					// The contents of the value should indicate that value a has changed
 					// to value b.
-					if err := appendUpdate(n, origPath, modVal); err != nil {
+					if err := appendUpdate(n, origPath, modVal, opts...); err != nil {
 						return nil, err
 					}
 				}
@@ -457,7 +484,7 @@ func Diff(original, modified GoStruct, opts ...DiffOpt) (*gnmipb.Notification, e
 	// not they are updates.
 	for modPath, modVal := range modLeaves {
 		if !matched[modPath] {
-			if err := appendUpdate(n, modPath, modVal); err != nil {
+			if err := appendUpdate(n, modPath, modVal, opts...); err != nil {
 				return nil, err
 			}
 		}
