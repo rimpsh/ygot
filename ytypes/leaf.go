@@ -342,6 +342,10 @@ type Binary []byte
 //
 // - schema points to the schema for the leaf type.
 func unmarshalLeaf(inSchema *yang.Entry, parent interface{}, value interface{}, enc Encoding, opts ...UnmarshalOpt) error {
+	if hasIgnoreReadOnlyFields(opts) && inSchema.ReadOnly() {
+		return nil
+	}
+
 	if util.IsValueNil(value) {
 		if enc == JSONEncoding {
 			return nil

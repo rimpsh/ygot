@@ -39,6 +39,12 @@ type IgnoreExtraFields struct{}
 // IsUnmarshalOpt marks IgnoreExtraFields as a valid UnmarshalOpt.
 func (*IgnoreExtraFields) IsUnmarshalOpt() {}
 
+// IgnoreReadOnlyFields
+type IgnoreReadOnlyFields struct{}
+
+// IsUnmarshalOpt marks IgnoreReadOnlyFields as a valid UnmarshalOpt.
+func (*IgnoreReadOnlyFields) IsUnmarshalOpt() {}
+
 // IsUnmarshalOpt marks PreferShadowPath as a valid UnmarshalOpt.
 // See PreferShadowPath's definition in node.go.
 func (*PreferShadowPath) IsUnmarshalOpt() {}
@@ -118,6 +124,17 @@ func hasIgnoreExtraFields(opts []UnmarshalOpt) bool {
 func hasPreferShadowPath(opts []UnmarshalOpt) bool {
 	for _, o := range opts {
 		if _, ok := o.(*PreferShadowPath); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// hasIgnoreReadOnlyFields determines whether the supplied slice of UnmarshalOpts
+// contains the IgnoreReadOnlyFields option.
+func hasIgnoreReadOnlyFields(opts []UnmarshalOpt) bool {
+	for _, o := range opts {
+		if _, ok := o.(*IgnoreReadOnlyFields); ok {
 			return true
 		}
 	}

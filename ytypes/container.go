@@ -123,6 +123,10 @@ func unmarshalContainer(schema *yang.Entry, parent interface{}, jsonTree interfa
 		return err
 	}
 
+	if hasIgnoreReadOnlyFields(opts) && schema.ReadOnly() {
+		return nil
+	}
+
 	util.DbgPrint("unmarshalContainer jsonTree %v, type %T, into parent type %T, schema name %s", util.ValueStrDebug(jsonTree), jsonTree, parent, schema.Name)
 
 	// Since this is a container, the JSON data tree is a map.
@@ -184,6 +188,10 @@ func unmarshalStruct(schema *yang.Entry, parent interface{}, jsonTree map[string
 
 		if cschema == nil {
 			return fmt.Errorf("unmarshalContainer could not find schema for type %T, field name %s", parent, ft.Name)
+		}
+
+		if hasIgnoreReadOnlyFields(opts) && cschema.ReadOnly() {
+			continue
 		}
 
 		// Store the data tree path of the current field. These will be used

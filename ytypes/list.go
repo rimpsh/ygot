@@ -288,6 +288,10 @@ func unmarshalList(schema *yang.Entry, parent interface{}, jsonList interface{},
 		return err
 	}
 
+	if hasIgnoreReadOnlyFields(opts) && schema.ReadOnly() {
+		return nil
+	}
+
 	util.DbgPrint("unmarshalList jsonList %v, type %T, into parent type %T, schema name %s", util.ValueStrDebug(jsonList), jsonList, parent, schema.Name)
 
 	// Parent must be a map, slice ptr, or struct ptr.

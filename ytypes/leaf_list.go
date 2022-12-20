@@ -101,6 +101,10 @@ func unmarshalLeafList(schema *yang.Entry, parent interface{}, value interface{}
 		return err
 	}
 
+	if hasIgnoreReadOnlyFields(opts) && schema.ReadOnly() {
+		return nil
+	}
+
 	fieldName, _, err := schemaToStructFieldName(schema, parent, hasPreferShadowPath(opts))
 	if err != nil {
 		return err
